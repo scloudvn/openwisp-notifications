@@ -50,15 +50,17 @@ const owNotificationWindow = {
 };
 
 function initNotificationDropDown($) {
-    $('.ow-notifications').click(function (e) {
-        e.stopPropagation();
+    $('.ow-notifications').click(function () {
         $('.ow-notification-dropdown').toggleClass('ow-hide');
     });
 
     $(document).click(function (e) {
         e.stopPropagation();
-        // Check if the clicked area is dropDown or not
-        if ($('.ow-notification-dropdown').has(e.target).length === 0) {
+        // Check if the clicked area is dropDown / notification-btn or not
+        if (
+            $('.ow-notification-dropdown').has(e.target).length === 0 &&
+            !$(e.target).is($('.ow-notifications'))
+        ) {
             $('.ow-notification-dropdown').addClass('ow-hide');
         }
     });
@@ -69,7 +71,7 @@ function initNotificationDropDown($) {
         e.stopPropagation();
         if ($('.ow-notification-dropdown').has(e.target).length === 0){
             // Don't hide if focus changes to notification bell icon
-            if (e.target != $('#ow-notification-btn').get(0)) {
+            if (e.target != $('#openwisp_notifications').get(0)) {
                 $('.ow-notification-dropdown').addClass('ow-hide');
             }
         }
@@ -80,7 +82,7 @@ function initNotificationDropDown($) {
         // Hide notification widget on "Escape" key
         if (e.keyCode == 27){
             $('.ow-notification-dropdown').addClass('ow-hide');
-            $('#ow-notification-btn').focus();
+            $('#openwisp_notifications').focus();
         }
     });
 }

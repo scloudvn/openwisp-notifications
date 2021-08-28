@@ -36,13 +36,16 @@ function getObjectNotificationComponent() {
 
 function initObjectNotificationDropdown($) {
     $(document).on('click', '.ow-object-notify', function (e) {
-        e.stopPropagation();
+        e.preventDefault();
         $('.ow-object-notification-option-container').toggleClass('ow-hide');
     });
     $(document).click(function (e) {
         e.stopPropagation();
-        // Check if the clicked area is dropDown or not
-        if ($('.ow-object-notification-option-container').has(e.target).length === 0) {
+        // Check if the clicked area is dropDown / ow-notify-btn or not
+        if (
+            $('.ow-object-notification-option-container').has(e.target).length === 0 &&
+            !$(e.target).is($('.ow-object-notify'))
+        ) {
             $('.ow-object-notification-option-container').addClass('ow-hide');
         }
     });
