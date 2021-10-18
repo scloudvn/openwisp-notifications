@@ -368,7 +368,7 @@ displayed through notification toast.
 Email Notifications
 -------------------
 
-.. figure:: https://github.com/openwisp/openwisp-notifications/raw/master/docs/images/email-template.png
+.. figure:: https://github.com/openwisp/openwisp-notifications/raw/docs/docs/images/email-template.png
 
 Along with web notifications *OpenWISP Notification* also sends notifications
 through emails.
@@ -389,7 +389,7 @@ Cache invalidation
 ~~~~~~~~~~~~~~~~~~
 
 The function ``register_notification_cache_update`` can be used to register a signal of a model which is being used as an
-``actor``, ``action_object`` and ``target`` objects. As these values are cached for the optimization purpose so their cached 
+``actor``, ``action_object`` and ``target`` objects. As these values are cached for the optimization purpose so their cached
 values are need to be changed when they are changed. You can register any signal you want which will delete the cached value.
 To register a signal you need to include following code in your ``apps.py``.
 
@@ -408,9 +408,9 @@ To register a signal you need to include following code in your ``apps.py``.
         model = load_model('app_name', 'model_name')
         register_notification_cache_update(model, post_save, dispatch_uid="myapp_mymodel_notification_cache_invalidation")
 
-**Note**: You need to import ``register_notification_cache_update`` inside the ``ready`` function or 
-you can define another funtion to register signals which will be called in ``ready`` and then it will be 
-imported in this function. Also ``dispatch_uid`` is unique identifier of a signal. You can pass any 
+**Note**: You need to import ``register_notification_cache_update`` inside the ``ready`` function or
+you can define another funtion to register signals which will be called in ``ready`` and then it will be
+imported in this function. Also ``dispatch_uid`` is unique identifier of a signal. You can pass any
 value you want but it needs to be unique. For more details read `preventing duplicate signals section of Django documentation <https://docs.djangoproject.com/en/dev/topics/signals/#preventing-duplicate-signals>`_
 
 Notification Types
@@ -482,7 +482,7 @@ Syntax:
 
 .. code-block:: python
 
-    register_notification_type(type_name, type_config)
+    register_notification_type(type_name, type_config, models)
 
 +---------------+-------------------------------------------------------------+
 | **Parameter** | **Description**                                             |
@@ -491,12 +491,18 @@ Syntax:
 +---------------+-------------------------------------------------------------+
 | type_config   | A ``dict`` defining configuration of the notification type. |
 +---------------+-------------------------------------------------------------+
+| models        | An optional ``list`` of models that can be associated with  |
+|               | the notification type.                                      |
++---------------+-------------------------------------------------------------+
 
 An example usage has been shown below.
 
 .. code-block:: python
 
     from openwisp_notifications.types import register_notification_type
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
 
     # Define configuration of your notification type
     custom_type = {
@@ -510,7 +516,7 @@ An example usage has been shown below.
     }
 
     # Register your custom notification type
-    register_notification_type('custom_type', custom_type)
+    register_notification_type('custom_type', custom_type, models=[User])
 
 **Note**: It will raise ``ImproperlyConfigured`` exception if a notification type is already registered
 with same name(not to be confused with ``verbose_name``).
@@ -593,7 +599,7 @@ unregistered in ``ready`` method of your Django application's ``AppConfig``.
 Notification Preferences
 ------------------------
 
-.. image:: https://github.com/openwisp/openwisp-notifications/raw/master/docs/images/notification-settings.png
+.. image:: https://github.com/openwisp/openwisp-notifications/raw/docs/docs/images/notification-settings.png
 
 *openwisp-notifications* allows users to select their preferred way of receiving notifications.
 Users can choose from web or email notifications. These settings have been categorized
@@ -610,10 +616,17 @@ by disabling both web and email option for a notification setting.
 then ``email_notification`` or ``web_notification`` option of concerned notification type will be used
 respectively.
 
+Deleting Notification Preferences
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Deleting the notification preferences is an advanced option. Users should turn off web and email
+notifications instead of deleting notification preferences. Deleted notification preferences
+may be re-created automatically if the system needs it.
+
 Silencing notifications for specific objects temporarily or permanently
 -----------------------------------------------------------------------
 
-.. image:: https://github.com/openwisp/openwisp-notifications/raw/master/docs/images/silence-notifications.png
+.. image:: https://github.com/openwisp/openwisp-notifications/raw/docs/docs/images/silence-notifications.png
    :align: center
 
 *OpenWISP Notifications* allows users to silence all notifications generated by
@@ -820,6 +833,18 @@ model, then configure the setting as following:
 
     OPENWISP_NOTIFICATIONS_IGNORE_ENABLED_ADMIN = ['openwisp_users.admin.UserAdmin']
 
+``OPENWISP_NOTIFICATIONS_POPULATE_PREFERENCES_ON_MIGRATE``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
++---------+----------+
+| type    | ``bool`` |
++---------+----------+
+| default | ``True`` |
++---------+----------+
+
+This setting allows to disable creating `notification preferences <#notification-preferences>`_
+on running migrations.
+
 Exceptions
 ----------
 
@@ -842,14 +867,14 @@ REST API
 Live documentation
 ~~~~~~~~~~~~~~~~~~
 
-.. image:: https://github.com/openwisp/openwisp-notifications/raw/master/docs/images/api-docs.png
+.. image:: https://github.com/openwisp/openwisp-notifications/raw/docs/docs/images/api-docs.png
 
 A general live API documentation (following the OpenAPI specification) is available at ``/api/v1/docs/``.
 
 Browsable web interface
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-.. image:: https://github.com/openwisp/openwisp-notifications/raw/master/docs/images/api-ui.png
+.. image:: https://github.com/openwisp/openwisp-notifications/raw/docs/docs/images/api-ui.png
 
 Additionally, opening any of the endpoints `listed below <#list-of-endpoints>`_
 directly in the browser will show the `browsable API interface of Django-REST-Framework
@@ -1044,7 +1069,7 @@ Make sure that you are using pip version 20.2.4 before moving to the next step:
 
 .. code-block:: shell
 
-    pip install -U "pip==20.2.4" wheel 
+    pip install -U "pip==20.2.4" wheel
 
 Install development dependencies:
 

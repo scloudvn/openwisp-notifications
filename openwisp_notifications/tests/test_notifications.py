@@ -2,14 +2,15 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from celery.exceptions import OperationalError
+from django.apps.registry import apps
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models.signals import post_migrate, post_save, pre_delete
+from django.db.models.signals import post_migrate, post_save
 from django.template import TemplateDoesNotExist
-from django.test import TestCase, TransactionTestCase
+from django.test import TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -18,7 +19,6 @@ from django.utils.timesince import timesince
 from openwisp_notifications import settings as app_settings
 from openwisp_notifications import tasks
 from openwisp_notifications.handlers import (
-    NotificationsAppConfig,
     notify_handler,
     register_notification_cache_update,
 )
@@ -41,6 +41,8 @@ User = get_user_model()
 
 Notification = load_model('Notification')
 NotificationSetting = load_model('NotificationSetting')
+NotificationAppConfig = apps.get_app_config(Notification._meta.app_label)
+
 
 OrganizationUser = swapper_load_model('openwisp_users', 'OrganizationUser')
 Group = swapper_load_model('openwisp_users', 'Group')
@@ -50,7 +52,9 @@ ten_minutes_ago = start_time - timedelta(minutes=10)
 notification_queryset = Notification.objects.order_by('-timestamp')
 
 
-class TestNotifications(TestOrganizationMixin, TestCase):
+class TestNotifications(TestOrganizationMixin, TransactionTestCase):
+    app_label = 'openwisp_notifications'
+
     def setUp(self):
         self.admin = self._create_admin()
         self.notification_options = dict(
@@ -157,6 +161,26 @@ class TestNotifications(TestOrganizationMixin, TestCase):
         self.assertEqual(Notification.objects.count(), 1)
         self.assertEqual(len(mail.outbox), 0)
 
+    def test_notification_preference_flagged_deleted(self):
+        self.notification_options.update(
+            {'type': 'default', 'target': self._get_org_user()}
+        )
+        NotificationSetting.objects.filter(
+            user_id=self.admin.pk, type='default'
+        ).update(deleted=True)
+        self._create_notification()
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_notification_preference_deleted_from_db(self):
+        self.notification_options.update(
+            {'type': 'default', 'target': self._get_org_user()}
+        )
+        NotificationSetting.objects.filter(
+            user_id=self.admin.pk, type='default'
+        ).delete()
+        self._create_notification()
+        self.assertEqual(Notification.objects.count(), 0)
+
     def test_email_not_present(self):
         self.admin.email = ''
         self.admin.save()
@@ -170,7 +194,7 @@ class TestNotifications(TestOrganizationMixin, TestCase):
         user = self._create_user(
             username='user', email='user@user.com', first_name='User', last_name='user'
         )
-        op_group = Group.objects.get(name='Operator')
+        op_group = Group.objects.create(name='Operator')
         op_group.user_set.add(operator)
         op_group.user_set.add(user)
         op_group.save()
@@ -424,7 +448,7 @@ class TestNotifications(TestOrganizationMixin, TestCase):
             self.assertEqual(content_type, 'text/html')
             self.assertIn(n.message, html_message)
             self.assertIn(
-                f'For further information see <a href="{url}">{url}</a>.', html_message,
+                f'<a href="{url}" class="btn">Find out more</a>', html_message,
             )
 
         with self.subTest('Test email without URL option and target object'):
@@ -463,20 +487,9 @@ class TestNotifications(TestOrganizationMixin, TestCase):
             )
             self.assertIn(n.message, html_message)
             self.assertIn(
-                f'<a href="{n.redirect_view_url}">For further information see'
-                f' "{n.target_content_type.model}: {n.target}".</a>',
+                f'<a href="{n.redirect_view_url}" class="btn">Find out more</a>',
                 html_message,
             )
-
-    def test_responsive_html_email(self):
-        self.notification_options.update({'type': 'default'})
-        self._create_notification()
-        email = mail.outbox.pop()
-        html_message, content_type = email.alternatives.pop()
-        self.assertIn('@media screen and (max-width: 250px)', html_message)
-        self.assertIn('@media screen and (max-width: 600px)', html_message)
-        self.assertIn('@media screen and (min-width: 600px)', html_message)
-        self.assertIn('<tr class="m-notification-header">', html_message)
 
     def test_missing_relation_object(self):
         test_type = {
@@ -494,34 +507,36 @@ class TestNotifications(TestOrganizationMixin, TestCase):
                 ' {notification.actor} with {notification.action_object} for {notification.target}'
             ),
         }
-        register_notification_type('test_type', test_type)
+        register_notification_type('test_type', test_type, models=[User])
         self.notification_options.pop('email_subject')
         self.notification_options.update({'type': 'test_type'})
-        operator = self._get_operator()
 
         with self.subTest("Missing target object after creation"):
+            operator = self._get_operator()
             self.notification_options.update({'target': operator})
             self._create_notification()
-            pre_delete.send(sender=self, instance=operator)
+            operator.delete()
 
             n_count = notification_queryset.count()
             self.assertEqual(n_count, 0)
 
         with self.subTest("Missing action object after creation"):
+            operator = self._get_operator()
             self.notification_options.pop('target')
             self.notification_options.update({'action_object': operator})
             self._create_notification()
-            pre_delete.send(sender=self, instance=operator)
+            operator.delete()
 
             n_count = notification_queryset.count()
             self.assertEqual(n_count, 0)
 
         with self.subTest("Missing actor object after creation"):
+            operator = self._get_operator()
             self.notification_options.pop('action_object')
             self.notification_options.pop('url')
             self.notification_options.update({'sender': operator})
             self._create_notification()
-            pre_delete.send(sender=self, instance=operator)
+            operator.delete()
 
             n_count = notification_queryset.count()
             self.assertEqual(n_count, 0)
@@ -823,9 +838,34 @@ class TestNotifications(TestOrganizationMixin, TestCase):
     @patch('logging.Logger.warning')
     def test_post_migrate_handler_celery_broker_unreachable(self, mocked_logger, *args):
         post_migrate.send(
-            sender=NotificationsAppConfig, app_config=NotificationsAppConfig
+            sender=NotificationAppConfig, app_config=NotificationAppConfig
         )
         mocked_logger.assert_called_once()
+
+    @patch.object(post_migrate, 'receivers', [])
+    @patch(
+        'openwisp_notifications.tasks.ns_register_unregister_notification_type.delay',
+    )
+    def test_post_migrate_populate_notification_settings(self, mocked_task, *args):
+        with patch.object(app_settings, 'POPULATE_PREFERENCES_ON_MIGRATE', False):
+            NotificationAppConfig.ready()
+            post_migrate.send(
+                sender=NotificationAppConfig, app_config=NotificationAppConfig
+            )
+            mocked_task.assert_not_called()
+        with patch.object(app_settings, 'POPULATE_PREFERENCES_ON_MIGRATE', True):
+            NotificationAppConfig.ready()
+            post_migrate.send(
+                sender=NotificationAppConfig, app_config=NotificationAppConfig
+            )
+            mocked_task.assert_called_once()
+
+    @patch('openwisp_notifications.types.NOTIFICATION_ASSOCIATED_MODELS', set())
+    @patch('openwisp_notifications.tasks.delete_obsolete_objects.delay')
+    def test_delete_obsolete_tasks(self, mocked_task, *args):
+        user = self._create_user()
+        user.delete()
+        mocked_task.assert_not_called()
 
 
 class TestTransactionNotifications(TestOrganizationMixin, TransactionTestCase):
